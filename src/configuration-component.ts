@@ -4,6 +4,7 @@ export class ConfigurationComponent {
   public readonly element: HTMLFormElement;
   private readonly script: HTMLDivElement;
   private readonly repo: HTMLInputElement;
+  private readonly endpoint: HTMLInputElement;
   private readonly label: HTMLInputElement;
   private readonly theme: HTMLSelectElement;
 
@@ -29,6 +30,20 @@ export class ConfigurationComponent {
           <p class="note">
             A <strong>public</strong> GitHub repository. This is where the blog
             post issues and issue-comments will be posted.
+          </p>
+        </div>
+      </fieldset>
+
+      <h3 id="heading-endpoint">GitHub API Endpoint</h3>
+      <p>
+        Optional. Use this if you need a custom GitHub API endpoint (for example, GitHub Enterprise).
+      </p>
+      <fieldset>
+        <div>
+          <label for="endpoint">endpoint (optional):</label><br/>
+          <input id="endpoint" class="form-control" type="text" placeholder="https://xtalk.raw2.cc">
+          <p class="note">
+            Must be an absolute HTTP(S) URL. Leave blank to use the default GitHub API endpoint.
           </p>
         </div>
       </fieldset>
@@ -158,6 +173,8 @@ export class ConfigurationComponent {
 
     this.repo = this.element.querySelector('#repo') as HTMLInputElement;
 
+    this.endpoint = this.element.querySelector('#endpoint') as HTMLInputElement;
+
     this.label = this.element.querySelector('#label') as HTMLInputElement;
 
     this.theme = this.element.querySelector('#theme') as HTMLSelectElement;
@@ -189,6 +206,7 @@ export class ConfigurationComponent {
 
   private outputConfig() {
     const mapping = this.element.querySelector('input[name="mapping"]:checked') as HTMLInputElement;
+    const endpoint = this.endpoint.value.trim();
     let mappingAttr: string;
     // tslint:disable-next-line:prefer-conditional-expression
     if (mapping.value === 'issue-number') {
@@ -200,6 +218,7 @@ export class ConfigurationComponent {
     }
     this.script.innerHTML = this.makeConfigScript(
       this.makeConfigScriptAttribute('repo', this.repo.value === '' ? '[ENTER REPO HERE]' : this.repo.value) + '\n' +
+      (endpoint ? this.makeConfigScriptAttribute('endpoint', endpoint) + '\n' : '') +
       mappingAttr + '\n' +
       (this.label.value ? this.makeConfigScriptAttribute('label', this.label.value) + '\n' : '') +
       this.makeConfigScriptAttribute('theme', this.theme.value) + '\n' +
@@ -213,7 +232,7 @@ export class ConfigurationComponent {
 
   private makeConfigScript(attrs: string) {
     // tslint:disable-next-line:max-line-length
-    return `<pre><span class="pl-s1">&lt;<span class="pl-ent">script</span> <span class="pl-e">src</span>=<span class="pl-s"><span class="pl-pds">"</span>https://utteranc.es/client.js<span class="pl-pds">"</span></span></span>\n${attrs}\n<span class="pl-s1">        <span class="pl-e">async</span>&gt;</span>\n<span class="pl-s1">&lt;/<span class="pl-ent">script</span>&gt;</span></pre>`;
+    return `<pre><span class="pl-s1">&lt;<span class="pl-ent">script</span> <span class="pl-e">src</span>=<span class="pl-s"><span class="pl-pds">"</span>https://utteranc.raw2.cc/client.js<span class="pl-pds">"</span></span></span>\n${attrs}\n<span class="pl-s1">        <span class="pl-e">async</span>&gt;</span>\n<span class="pl-s1">&lt;/<span class="pl-ent">script</span>&gt;</span></pre>`;
   }
 
   private copyTextToClipboard(text: string) {

@@ -15,7 +15,6 @@ import { TimelineComponent } from './timeline-component';
 import { NewCommentComponent } from './new-comment-component';
 import { startMeasuring, scheduleMeasure } from './measure';
 import { loadTheme } from './theme';
-import { getRepoConfig } from './repo-config';
 import { loadToken } from './oauth';
 import { enableReactions } from './reactions';
 
@@ -29,7 +28,7 @@ function loadIssue(): Promise<Issue | null> {
 }
 
 async function bootstrap() {
-  await loadToken();
+  await loadToken().catch(() => null);
   // tslint:disable-next-line:prefer-const
   let [issue, user] = await Promise.all([
     loadIssue(),
@@ -55,7 +54,6 @@ async function bootstrap() {
   enableReactions(!!user);
 
   const submit = async (markdown: string) => {
-    await assertOrigin();
     if (!issue) {
       issue = await createIssue(
         page.issueTerm as string,
@@ -134,26 +132,4 @@ async function renderComments(issue: Issue, timeline: TimelineComponent) {
     const loader = timeline.insertPageLoader(afterComment, hiddenPageCount * PAGE_SIZE, load);
   };
   renderLoader(pages[0]);
-}
-
-export async function assertOrigin() {
-  const { origins } = await getRepoConfig();
-  const { origin, owner, repo } = page;
-  if (origins.indexOf(origin) !== -1) {
-    return;
-  }
-
-  document.querySelector('.timeline')!.lastElementChild!.insertAdjacentHTML('beforebegin', `
-  <div class="flash flash-error flash-not-installed">
-    Error: <code>${origin}</code> is not permitted to post to <code>${owner}/${repo}</code>.
-    Confirm this is the correct repo for this site's comments. If you own this repo,
-    <a href="https://github.com/${owner}/${repo}/edit/master/utterances.json" target="_top">
-      <strong>update the utterances.json</strong>
-    </a>
-    to include <code>${origin}</code> in the list of origins.<br/><br/>
-    Suggested configuration:<br/>
-    <pre><code>${JSON.stringify({ origins: [origin] }, null, 2)}</code></pre>
-  </div>`);
-  scheduleMeasure();
-  throw new Error('Origin not permitted.');
 }

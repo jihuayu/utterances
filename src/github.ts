@@ -1,8 +1,8 @@
 import { token } from './oauth';
 import { decodeBase64UTF8 } from './encoding';
-import { UTTERANCES_API } from './utterances-api';
 
-const GITHUB_API = 'https://api.github.com/';
+const DEFAULT_GITHUB_API_ENDPOINT = 'https://xtalk.raw2.cc';
+const PUBLIC_GITHUB_API_ENDPOINT = 'https://api.github.com';
 const GITHUB_ENCODING__HTML_JSON = 'application/vnd.github.VERSION.html+json';
 const GITHUB_ENCODING__HTML = 'application/vnd.github.VERSION.html';
 const GITHUB_ENCODING__REST_V3 = 'application/vnd.github.v3+json';
@@ -15,18 +15,97 @@ export const reactionTypes: ReactionID[] = ['+1', '-1', 'laugh', 'hooray', 'conf
 
 let owner: string;
 let repo: string;
+let githubApiEndpoint = `${DEFAULT_GITHUB_API_ENDPOINT}/`;
 const branch = 'master';
 
-export function setRepoContext(context: { owner: string; repo: string; }) {
+function normalizeGithubApiEndpoint(endpoint?: string) {
+  if (!endpoint || endpoint.trim() === '') {
+    return `${DEFAULT_GITHUB_API_ENDPOINT}/`;
+  }
+  return `${endpoint.trim().replace(/\/+$/, '')}/`;
+}
+
+function normalizeEndpoint(endpoint: string) {
+  return `${endpoint.trim().replace(/\/+$/, '')}/`;
+}
+
+function requestRelativeUrl(request: Request) {
+  const requestUrl = new URL(request.url);
+  const endpoints = [githubApiEndpoint, normalizeEndpoint(PUBLIC_GITHUB_API_ENDPOINT)];
+
+  for (const endpoint of endpoints) {
+    const base = new URL(endpoint);
+    if (requestUrl.origin === base.origin && requestUrl.pathname.startsWith(base.pathname)) {
+      const relativePath = requestUrl.pathname.substring(base.pathname.length).replace(/^\/+/, '');
+      return `${relativePath}${requestUrl.search}`;
+    }
+  }
+
+  return `${requestUrl.pathname.replace(/^\/+/, '')}${requestUrl.search}`;
+}
+
+function requestUsesEndpoint(request: Request, endpoint: string) {
+  const base = new URL(normalizeEndpoint(endpoint));
+  const requestUrl = new URL(request.url);
+  return requestUrl.origin === base.origin && requestUrl.pathname.startsWith(base.pathname);
+}
+
+function recreateGetRequestAtEndpoint(request: Request, endpoint: string) {
+  const relativeUrl = requestRelativeUrl(request);
+  const retry = new Request(new URL(relativeUrl, normalizeEndpoint(endpoint)), {
+    method: 'GET',
+    mode: request.mode,
+    cache: request.cache,
+    headers: new Headers(request.headers)
+  });
+  return retry;
+}
+
+function shouldFallbackToPublicReadApi(request: Request, response: Response) {
+  if (request.method !== 'GET' || request.headers.has('Authorization')) {
+    return false;
+  }
+  if (![401, 403, 404].includes(response.status)) {
+    return false;
+  }
+  if (requestUsesEndpoint(request, PUBLIC_GITHUB_API_ENDPOINT)) {
+    return false;
+  }
+
+  const relativeUrl = requestRelativeUrl(request);
+  if (/^user(?:\?|$)/.test(relativeUrl)) {
+    return false;
+  }
+
+  return true;
+}
+
+function toGithubApiRelativeUrl(url: string) {
+  if (!/^https?:\/\//.test(url)) {
+    return url.replace(/^\/+/, '');
+  }
+
+  const base = new URL(githubApiEndpoint);
+  const absolute = new URL(url);
+  if (base.origin !== absolute.origin || !absolute.pathname.startsWith(base.pathname)) {
+    throw new Error(`Reaction URL "${url}" does not match endpoint "${base.href}"`);
+  }
+
+  const relativePath = absolute.pathname.substring(base.pathname.length).replace(/^\/+/, '');
+  return `${relativePath}${absolute.search}`;
+}
+
+export function setRepoContext(context: { owner: string; repo: string; endpoint?: string; }) {
   owner = context.owner;
   repo = context.repo;
+  githubApiEndpoint = normalizeGithubApiEndpoint(context.endpoint);
 }
 
 function githubRequest(relativeUrl: string, init?: RequestInit) {
   init = init || {};
   init.mode = 'cors';
   init.cache = 'no-cache'; // force conditional request
-  const request = new Request(GITHUB_API + relativeUrl, init);
+  const request = new Request(new URL(relativeUrl.replace(/^\/+/, ''), githubApiEndpoint), init);
   request.headers.set('Accept', GITHUB_ENCODING__REST_V3);
   if (token.value !== null) {
     request.headers.set('Authorization', `token ${token.value}`);
@@ -103,6 +182,11 @@ function githubFetch(request: Request): Promise<Response> {
       request.headers.delete('Authorization');
       return githubFetch(request);
     }
+
+    if (shouldFallbackToPublicReadApi(request, response)) {
+      return githubFetch(recreateGetRequestAtEndpoint(request, PUBLIC_GITHUB_API_ENDPOINT));
+    }
+
     return response;
   });
 }
@@ -200,17 +284,20 @@ export function loadUser(): Promise<User | null> {
 }
 
 export function createIssue(issueTerm: string, documentUrl: string, title: string, description: string, label: string) {
-  const url = `${UTTERANCES_API}/repos/${owner}/${repo}/issues${label ? `?label=${encodeURIComponent(label)}` : ''}`;
-  const request = new Request(url, {
+  const url = `repos/${owner}/${repo}/issues`;
+  const payload: { title: string; body: string; labels?: string[] } = {
+    title: issueTerm,
+    body: `# ${title}\n\n${description}\n\n[${documentUrl}](${documentUrl})`
+  };
+  if (label) {
+    payload.labels = [label];
+  }
+  const request = githubRequest(url, {
     method: 'POST',
-    body: JSON.stringify({
-      title: issueTerm,
-      body: `# ${title}\n\n${description}\n\n[${documentUrl}](${documentUrl})`
-    })
+    body: JSON.stringify(payload)
   });
   request.headers.set('Accept', GITHUB_ENCODING__REST_V3);
-  request.headers.set('Authorization', `token ${token.value}`);
-  return fetch(request).then<Issue>(response => {
+  return githubFetch(request).then<Issue>(response => {
     if (!response.ok) {
       throw new Error('Error creating comments container issue');
     }
@@ -233,7 +320,7 @@ export function postComment(issueNumber: number, markdown: string) {
 }
 
 export async function toggleReaction(url: string, content: ReactionID) {
-  url = url.replace(GITHUB_API, '');
+  url = toGithubApiRelativeUrl(url);
   // We don't know if the reaction exists or not. Attempt to create it. If the GitHub
   // API responds that the reaction already exists, delete it.
   const body = JSON.stringify({ content });

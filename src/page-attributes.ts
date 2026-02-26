@@ -1,5 +1,33 @@
 import repoRegex from './repo-regex';
 
+const DEFAULT_GITHUB_API_ENDPOINT = 'https://xtalk.raw2.cc';
+
+function readEndpoint(value: string | undefined) {
+  if (value === undefined) {
+    return DEFAULT_GITHUB_API_ENDPOINT;
+  }
+
+  const endpoint = value.trim();
+  if (endpoint === '') {
+    throw new Error('"endpoint" cannot be blank.');
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(endpoint);
+  } catch {
+    throw new Error(`Invalid endpoint URL: "${value}"`);
+  }
+
+  if (!/^https?:$/.test(parsed.protocol)) {
+    throw new Error('"endpoint" must be an absolute http(s) URL.');
+  }
+
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString().replace(/\/$/, '');
+}
+
 function readPageAttributes() {
   const params = Object.fromEntries(new URL(location.href).searchParams)
 
@@ -43,6 +71,7 @@ function readPageAttributes() {
   return {
     owner: matches[1],
     repo: matches[2],
+    endpoint: readEndpoint(params.endpoint),
     issueTerm,
     issueNumber,
     origin: params.origin,

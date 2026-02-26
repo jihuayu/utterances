@@ -1,11 +1,12 @@
-import { UTTERANCES_API } from './utterances-api';
+import { UTTERANCES_OAUTH_API } from './utterances-api';
 import { pageAttributes } from './page-attributes';
 
 export const token = { value: null as null | string };
+const TOKEN_ENDPOINT = 'https://xtalk.raw2.cc/api/utterances/token';
 
 // tslint:disable-next-line:variable-name
 export function getLoginUrl(redirect_uri: string) {
-  return `${UTTERANCES_API}/authorize?${new URLSearchParams({ redirect_uri })}`;
+  return `${UTTERANCES_OAUTH_API}/authorize?${new URLSearchParams({ redirect_uri })}`;
 }
 
 export async function loadToken(): Promise<string | null> {
@@ -15,14 +16,9 @@ export async function loadToken(): Promise<string | null> {
   if (!pageAttributes.session) {
     return null;
   }
-  const url = `${UTTERANCES_API}/token`;
-  const response = await fetch(url, {
+  const response = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
     mode: 'cors',
-    credentials: 'include',
-    headers: {
-      'content-type': 'application/json'
-    },
     body: JSON.stringify(pageAttributes.session)
   });
   if (response.ok) {
