@@ -43,7 +43,15 @@ export function getReactionHtml(url: string, reaction: ReactionID, disabled: boo
 
 export function enableReactions(authenticated: boolean) {
   const submitReaction = async (event: Event) => {
-    const button = event.target instanceof HTMLElement && event.target.closest('button');
+    const clickTarget = event.target;
+    let button: HTMLButtonElement | null = null;
+    if (clickTarget instanceof HTMLButtonElement) {
+      button = clickTarget;
+    } else if (clickTarget instanceof Element) {
+      button = clickTarget.closest('button');
+    } else if (clickTarget instanceof Node && clickTarget.parentElement) {
+      button = clickTarget.parentElement.closest('button');
+    }
     if (!button) {
       return;
     }
@@ -54,24 +62,36 @@ export function enableReactions(authenticated: boolean) {
     if (!authenticated) {
       return;
     }
+    if (button.disabled) {
+      return;
+    }
     button.disabled = true;
-    const parentMenu = button.closest('details');
-    if (parentMenu) {
-      parentMenu.open = false;
+    try {
+      const parentMenu = button.closest('details');
+      if (parentMenu) {
+        parentMenu.open = false;
+      }
+      const url = button.getAttribute('formaction');
+      if (!url) {
+        throw new Error('reaction button missing "formaction"');
+      }
+      const id = button.value as ReactionID;
+      const { deleted } = await toggleReaction(url, id);
+      const selector = `button[reaction][formaction="${url}"][value="${id}"],[reaction-count][reaction-url="${url}"]`;
+      const elements = Array.from(document.querySelectorAll(selector));
+      const delta = deleted ? -1 : 1;
+      for (const element of elements) {
+        element.setAttribute(
+          'reaction-count',
+          (parseInt(element.getAttribute('reaction-count')!, 10) + delta).toString());
+      }
+      scheduleMeasure();
+    } catch (error) {
+      // tslint:disable-next-line:no-console
+      console.error(error);
+    } finally {
+      button.disabled = false;
     }
-    const url = button.formAction;
-    const id = button.value as ReactionID;
-    const { deleted } = await toggleReaction(url, id);
-    const selector = `button[reaction][formaction="${url}"][value="${id}"],[reaction-count][reaction-url="${url}"]`;
-    const elements = Array.from(document.querySelectorAll(selector));
-    const delta = deleted ? -1 : 1;
-    for (const element of elements) {
-      element.setAttribute(
-        'reaction-count',
-        (parseInt(element.getAttribute('reaction-count')!, 10) + delta).toString());
-    }
-    button.disabled = false;
-    scheduleMeasure();
   };
   addEventListener('click', submitReaction, true);
 }

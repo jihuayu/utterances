@@ -85,14 +85,17 @@ function toGithubApiRelativeUrl(url: string) {
     return url.replace(/^\/+/, '');
   }
 
-  const base = new URL(githubApiEndpoint);
   const absolute = new URL(url);
-  if (base.origin !== absolute.origin || !absolute.pathname.startsWith(base.pathname)) {
-    throw new Error(`Reaction URL "${url}" does not match endpoint "${base.href}"`);
+  const candidateEndpoints = [githubApiEndpoint, PUBLIC_GITHUB_API_ENDPOINT];
+  for (const endpoint of candidateEndpoints) {
+    const base = new URL(normalizeEndpoint(endpoint));
+    if (absolute.origin === base.origin && absolute.pathname.startsWith(base.pathname)) {
+      const relativePath = absolute.pathname.substring(base.pathname.length).replace(/^\/+/, '');
+      return `${relativePath}${absolute.search}`;
+    }
   }
 
-  const relativePath = absolute.pathname.substring(base.pathname.length).replace(/^\/+/, '');
-  return `${relativePath}${absolute.search}`;
+  return `${absolute.pathname.replace(/^\/+/, '')}${absolute.search}`;
 }
 
 export function setRepoContext(context: { owner: string; repo: string; endpoint?: string; }) {
