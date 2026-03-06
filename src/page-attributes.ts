@@ -1,6 +1,5 @@
 import repoRegex from './repo-regex';
-
-const DEFAULT_GITHUB_API_ENDPOINT = 'https://xtalk.raw2.cc';
+import { DEFAULT_GITHUB_API_ENDPOINT } from './utterances-api';
 
 function readEndpoint(value: string | undefined) {
   if (value === undefined) {

@@ -41,7 +41,7 @@ export class ConfigurationComponent {
       <fieldset>
         <div>
           <label for="endpoint">endpoint (optional):</label><br/>
-          <input id="endpoint" class="form-control" type="text" placeholder="https://xtalk.raw2.cc">
+          <input id="endpoint" class="form-control" type="text" placeholder="https://api.github.com">
           <p class="note">
             Must be an absolute HTTP(S) URL. Leave blank to use the default GitHub API endpoint.
           </p>

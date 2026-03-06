@@ -1,7 +1,7 @@
 import { token } from './oauth';
 import { decodeBase64UTF8 } from './encoding';
+import { resolveGithubApiEndpoint } from './utterances-api';
 
-const DEFAULT_GITHUB_API_ENDPOINT = 'https://xtalk.raw2.cc';
 const PUBLIC_GITHUB_API_ENDPOINT = 'https://api.github.com';
 const GITHUB_ENCODING__HTML_JSON = 'application/vnd.github.VERSION.html+json';
 const GITHUB_ENCODING__HTML = 'application/vnd.github.VERSION.html';
@@ -15,18 +15,11 @@ export const reactionTypes: ReactionID[] = ['+1', '-1', 'laugh', 'hooray', 'conf
 
 let owner: string;
 let repo: string;
-let githubApiEndpoint = `${DEFAULT_GITHUB_API_ENDPOINT}/`;
+let githubApiEndpoint = `${resolveGithubApiEndpoint()}/`;
 const branch = 'master';
 
-function normalizeGithubApiEndpoint(endpoint?: string) {
-  if (!endpoint || endpoint.trim() === '') {
-    return `${DEFAULT_GITHUB_API_ENDPOINT}/`;
-  }
-  return `${endpoint.trim().replace(/\/+$/, '')}/`;
-}
-
 function normalizeEndpoint(endpoint: string) {
-  return `${endpoint.trim().replace(/\/+$/, '')}/`;
+  return `${resolveGithubApiEndpoint(endpoint)}/`;
 }
 
 function requestRelativeUrl(request: Request) {
@@ -101,7 +94,7 @@ function toGithubApiRelativeUrl(url: string) {
 export function setRepoContext(context: { owner: string; repo: string; endpoint?: string; }) {
   owner = context.owner;
   repo = context.repo;
-  githubApiEndpoint = normalizeGithubApiEndpoint(context.endpoint);
+  githubApiEndpoint = `${resolveGithubApiEndpoint(context.endpoint)}/`;
 }
 
 function githubRequest(relativeUrl: string, init?: RequestInit) {

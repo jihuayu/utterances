@@ -1,12 +1,12 @@
-import { UTTERANCES_OAUTH_API } from './utterances-api';
+import { getAuthorizeEndpoint, getTokenEndpoint } from './utterances-api';
 import { pageAttributes } from './page-attributes';
 
 export const token = { value: null as null | string };
-const TOKEN_ENDPOINT = 'https://xtalk.raw2.cc/api/utterances/token';
 
 // tslint:disable-next-line:variable-name
 export function getLoginUrl(redirect_uri: string) {
-  return `${UTTERANCES_OAUTH_API}/authorize?${new URLSearchParams({ redirect_uri })}`;
+  const authorizeEndpoint = getAuthorizeEndpoint(pageAttributes.endpoint);
+  return `${authorizeEndpoint}?${new URLSearchParams({ redirect_uri })}`;
 }
 
 export async function loadToken(): Promise<string | null> {
@@ -16,7 +16,7 @@ export async function loadToken(): Promise<string | null> {
   if (!pageAttributes.session) {
     return null;
   }
-  const response = await fetch(TOKEN_ENDPOINT, {
+  const response = await fetch(getTokenEndpoint(pageAttributes.endpoint), {
     method: 'POST',
     mode: 'cors',
     body: JSON.stringify(pageAttributes.session)
